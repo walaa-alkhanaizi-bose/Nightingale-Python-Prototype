@@ -16,9 +16,6 @@ stream = p.open(format = pyaudio.paInt24,
 				input=True,
 				output=True)
 	
-	
-	
-#DEbug and investigate
 while True:
 	avg = 0
 	data = []
