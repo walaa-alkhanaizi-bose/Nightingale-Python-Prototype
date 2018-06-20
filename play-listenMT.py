@@ -39,6 +39,7 @@ def play():
         output_stream.write(write_data)
         num_array = array.array('B')
         num_array.fromstring(write_data)
+        global music_avg
         music_avg = numpy.mean(num_array)
 
 def listen():
@@ -47,7 +48,7 @@ def listen():
         for d in input_stream.read(num_frames):
             mic_avg += d
         mic_avg = mic_avg/(num_frames*num_channels*3)
-        print("avg of samples = "+str(mic_avg))
+        #print("avg of samples = "+str(mic_avg))
         noise = mic_avg - music_avg
         if noise > 10:
             print("NOISE!!!!")
