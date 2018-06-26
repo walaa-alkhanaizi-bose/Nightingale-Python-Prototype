@@ -16,6 +16,10 @@ stream = p.open(format = pyaudio.paInt24,
 				input=True,
 				output=True)
 	
+last_meas_time = time.clock()
+n = 0
+avg_avg_data = 0
+
 while True:
 	avg = 0
 	data = []
@@ -26,4 +30,12 @@ while True:
 	stream.write(byte_data)
 	avg = avg/(num_frames*num_channels*3)
 	print("avg of samples = "+str(avg))
+	avg_avg_data += avg
+	n += 1
+	if time.clock() >= last_meas_time + 1:
+		avg_avg_data /= n
+		print("average of mic data over 1 s = ",avg_avg_data)
+		avg_avg_data = 0
+		n = 0
+		last_meas_time = time.clock()
 	#time.sleep(.5)
