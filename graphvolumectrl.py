@@ -1,11 +1,13 @@
-import pyaudio
-import time
 import array
-import wave
-import numpy
-import sys
 import math
+import sys
+import time
+import wave
+
 import matplotlib.pyplot as plt
+import numpy
+import pyaudio
+
 import _thread
 
 #instantiate global variables
@@ -32,7 +34,8 @@ NUM_FRAMES = 1024
 NUM_CHANNELS = 2
 
 #flags for graphing
-GRAPH_MIC = False
+BAR_GRAPH_MIC = True
+GRAPH_MIC = True
 GRAPH_AVG_MIC = True
 GRAPH_ORIG_MUSIC = False
 GRAPH_MOD_MUSIC = False
@@ -40,22 +43,37 @@ GRAPH_MOD_MUSIC = False
 ####### FUNCTION DEFINITIONS #######
 
 def plot():
-    global mic_line, avg_mic_line, music_line, mod_music_line
-    global mic_xdata, mic_ydata, avg_mic_xdata, avg_mic_ydata, music_xdata, music_ydata, mod_music_xdata, mod_music_ydata
-    plt.xlabel('time')
-    plt.ylabel('amplitude')
-    plt.title('Mic data')
-    axes = plt.gca()
-    axes.set_xlim(0,1000)
-    axes.set_ylim(-1,255)
-    mic_line, = axes.plot(mic_xdata, mic_ydata, 'b-')
-    avg_mic_line, = axes.plot(avg_mic_xdata, avg_mic_ydata, 'r-')
-    music_line, = axes.plot(music_xdata, music_ydata, 'g-')
-    mod_music_line, = axes.plot(mod_music_xdata, mod_music_ydata, 'y-')
-    #plt.show()
-    plt.pause(.5)
-    #plt.draw()
-#    plt.show(block=False)
+    fig = 0
+    if (BAR_GRAPH_MIC):
+        global mic_bar
+        fig += 1
+        plt.figure(num=fig)
+        #bar chart for mic data:
+        mic_bar = plt.bar(x=0,height=0,width=1)
+        ax = plt.axes()
+        ax.set_ylim([0,30000])
+        ax.set_ylabel("amplitude of mic data")
+        # plt.show(block=False)
+    if (GRAPH_AVG_MIC or GRAPH_MIC or GRAPH_MOD_MUSIC or GRAPH_ORIG_MUSIC):
+        global mic_line, avg_mic_line, music_line, mod_music_line
+        global mic_xdata, mic_ydata, avg_mic_xdata, avg_mic_ydata, music_xdata, music_ydata, mod_music_xdata, mod_music_ydata
+        fig += 1
+        plt.figure(num=fig)
+
+        plt.xlabel('time')
+        plt.ylabel('amplitude')
+        plt.title('Mic data')
+        axes = plt.gca()
+        axes.set_xlim(0,1000)
+        axes.set_ylim(10000,30000)
+        mic_line, = axes.plot(mic_xdata, mic_ydata, 'b-')
+        avg_mic_line, = axes.plot(avg_mic_xdata, avg_mic_ydata, 'r-')
+        music_line, = axes.plot(music_xdata, music_ydata, 'g-')
+        mod_music_line, = axes.plot(mod_music_xdata, mod_music_ydata, 'y-')
+        #plt.show()
+        plt.pause(.5)
+        #plt.draw()
+    #    plt.show(block=False)
 
 def play():
     global write_data, music_avg, gain
@@ -95,8 +113,15 @@ def listen():
     global mic_avg, N
     mic_avg = 0
     for d in input_stream.read(NUM_FRAMES):
-        mic_avg += d
+        mic_avg += d*d
     mic_avg = mic_avg/(NUM_FRAMES*NUM_CHANNELS*3)
+    
+    if (BAR_GRAPH_MIC):
+        #mic data bar chart
+        mic_bar[0].set_height(mic_avg)
+        # plt.draw()
+        plt.pause(.00001)
+
     #print("mic_avg = "+str(mic_avg))
     #add datapoint to the plot
     N += 1
@@ -135,12 +160,12 @@ def adjust_volume():
         print("noise val =",str(avg_noise))
         print("mic val =",str(mic_avg))
         #print("music val =",str(music_avg))
-        if avg_noise > 10:
-            gain += 1
-            print("NOISE!!!! and gain = ", gain)
-        if avg_noise < -20:
-            gain -= 1
-            print("QUIET!!!! and gain = ", gain)
+        # if avg_noise > 10:
+        #     gain += 1
+        #     print("NOISE!!!! and gain = ", gain)
+        # if avg_noise < -20:
+        #     gain -= 1
+        #     print("QUIET!!!! and gain = ", gain)
         gain = max(-10, min(gain, 10)) #clip the gain to the max and min values
         n = 0
         avg_noise = 0
@@ -171,15 +196,14 @@ output_stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
 				output=True)
 
 #code that is going to run
-if GRAPH_AVG_MIC or GRAPH_MIC or GRAPH_MOD_MUSIC or GRAPH_ORIG_MUSIC:
-    plot()
- 
+plot()
+
 while len(write_data) > 0:
     play()
     listen()
     adjust_volume()
 
-plt.show()
+#plt.show()
 # stop streams
 output_stream.stop_stream()
 output_stream.close()
