@@ -37,8 +37,8 @@ NUM_CHANNELS = 2
 
 #flags for graphing
 BAR_GRAPH_MIC = True
-GRAPH_MIC = True
-GRAPH_AVG_MIC = True
+GRAPH_MIC = False
+GRAPH_AVG_MIC = False
 GRAPH_ORIG_MUSIC = False
 GRAPH_MOD_MUSIC = False
 
@@ -117,7 +117,7 @@ def listen():
     short_mic_data = struct.unpack(format_string, input_stream.read(NUM_FRAMES))
     # print("short mic data: ",short_mic_data)
     for d in short_mic_data:
-        mic_avg += d#*d
+        mic_avg += d*d
     mic_avg = mic_avg/(NUM_FRAMES*NUM_CHANNELS)
     print("mic_avg = "+str(mic_avg))
     # manage plots and update datapoints
@@ -194,7 +194,7 @@ input_stream = p.open(format = pyaudio.paInt16,
 				frames_per_buffer = NUM_FRAMES,
 				input=True)
 #create the format string for unpacking the bytestring input correctly
-format_string = '>'+'h'*NUM_CHANNELS*NUM_FRAMES
+format_string = '<'+'h'*NUM_CHANNELS*NUM_FRAMES
 
 # open stream to play audio through
 output_stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
