@@ -5,10 +5,12 @@ import time
 import wave
 
 import matplotlib.pyplot as plt
-import numpy
+import numpy as np
 import pyaudio
+# import sounddevice as sd
+import struct
 
-import _thread
+# import _thread
 
 #instantiate global variables
 gain = 0
@@ -86,9 +88,9 @@ def play():
         write_data.append(min(255,int(d*(math.pow(10,(gain/10))))))
     #print("write data: ", str(write_data))
     output_stream.write(array.array('B', write_data).tostring())
-    music_avg = numpy.mean(write_data)
+    music_avg = np.mean(write_data)
     #print("music_avg = "+str(music_avg))
-    #add datapoint to the plot
+    # manage plots and update datapoints
     if (GRAPH_MOD_MUSIC):
         mod_music_xdata.append(N)
         mod_music_ydata.append(music_avg)
@@ -112,19 +114,19 @@ def play():
 def listen():
     global mic_avg, N
     mic_avg = 0
-    for d in input_stream.read(NUM_FRAMES):
-        mic_avg += d*d
-    mic_avg = mic_avg/(NUM_FRAMES*NUM_CHANNELS*3)
-    
+    short_mic_data = struct.unpack(format_string, input_stream.read(NUM_FRAMES))
+    # print("short mic data: ",short_mic_data)
+    for d in short_mic_data:
+        mic_avg += d#*d
+    mic_avg = mic_avg/(NUM_FRAMES*NUM_CHANNELS)
+    print("mic_avg = "+str(mic_avg))
+    # manage plots and update datapoints
+    N += 1
     if (BAR_GRAPH_MIC):
         #mic data bar chart
         mic_bar[0].set_height(mic_avg)
         # plt.draw()
         plt.pause(.00001)
-
-    #print("mic_avg = "+str(mic_avg))
-    #add datapoint to the plot
-    N += 1
     if (GRAPH_MIC):
         mic_xdata.append(N)
         mic_ydata.append(mic_avg)
@@ -145,8 +147,7 @@ def adjust_volume():
     if time.clock() >= last_meas_time + 1:
         avg_noise = avg_noise/n
         
-        #add datapoint to the plot
-        #N += 1
+        # manage plots and update datapoints
         if (GRAPH_AVG_MIC):
             avg_mic_xdata.append(N)
             avg_mic_ydata.append(avg_noise)
@@ -160,6 +161,7 @@ def adjust_volume():
         print("noise val =",str(avg_noise))
         print("mic val =",str(mic_avg))
         #print("music val =",str(music_avg))
+        # update the gain/volume based on noise value
         # if avg_noise > 10:
         #     gain += 1
         #     print("NOISE!!!! and gain = ", gain)
@@ -183,11 +185,16 @@ if len(sys.argv) < 2:
 wf = wave.open(sys.argv[1], 'rb')
 
 # open stream to record mic data
-input_stream = p.open(format = pyaudio.paInt24,
+# details for the channel number, format, and rate are located at:
+# Manage Audio Devices > Recording > Microphone Properties > Advanced > Default Format
+# I changed the default format to 16 bits instead of 24 for ease of conversion to int
+input_stream = p.open(format = pyaudio.paInt16,
                 channels = NUM_CHANNELS,
-                rate = 44100,
+                rate = 48000,
 				frames_per_buffer = NUM_FRAMES,
 				input=True)
+#create the format string for unpacking the bytestring input correctly
+format_string = '>'+'h'*NUM_CHANNELS*NUM_FRAMES
 
 # open stream to play audio through
 output_stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
