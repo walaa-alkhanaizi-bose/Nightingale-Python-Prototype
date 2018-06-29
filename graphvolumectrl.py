@@ -14,7 +14,8 @@ import struct
 #instantiate global variables
 gain = 0
 write_data = '0'
-cur_vol_lev = 4
+cur_vol_lev = 4 #fix this sketchy math to figure out the multiplier for current volume level
+cur_vol_gain = math.pow(10, (-100+cur_vol_lev)/10) / math.pow(10, 1/10)
 last_meas_time = time.clock()
 n = 0
 N = 0
@@ -22,8 +23,8 @@ avg_noise = 0
 #instantiate arrays to store data to be plotted
 mic_xdata = []
 mic_ydata = []
-avg_mic_xdata = []
-avg_mic_ydata = []
+avg_noise_xdata = []
+avg_noise_ydata = []
 music_xdata = []
 music_ydata = []
 mod_music_xdata = []
@@ -32,10 +33,10 @@ mod_music_ydata = []
 NUM_FRAMES = 1024
 NUM_CHANNELS = 2
 #flags for graphing
-Flags = [0,1,1,1,1]
+Flags = [0,0,0,0,0]
 BAR_GRAPH_MIC = Flags[0]
 GRAPH_MIC = Flags[1]
-GRAPH_AVG_MIC = Flags[2]
+GRAPH_AVG_NOISE= Flags[2]
 GRAPH_ORIG_MUSIC = Flags[3]
 GRAPH_MOD_MUSIC = Flags[4]
 
@@ -52,9 +53,9 @@ def plot():
         ax = plt.axes()
         ax.set_ylim([0,45000])
         ax.set_ylabel("amplitude of mic data")
-    if (GRAPH_AVG_MIC or GRAPH_MIC or GRAPH_MOD_MUSIC or GRAPH_ORIG_MUSIC):
-        global mic_line, avg_mic_line, music_line, mod_music_line
-        global mic_xdata, mic_ydata, avg_mic_xdata, avg_mic_ydata, music_xdata, music_ydata, mod_music_xdata, mod_music_ydata
+    if (GRAPH_AVG_NOISE or GRAPH_MIC or GRAPH_MOD_MUSIC or GRAPH_ORIG_MUSIC):
+        global mic_line, avg_noise_line, music_line, mod_music_line
+        global mic_xdata, mic_ydata, avg_noise_xdata, avg_noise_ydata, music_xdata, music_ydata, mod_music_xdata, mod_music_ydata
         fig += 1
         plt.figure(num=fig)
         plt.xlabel('time')
@@ -64,7 +65,7 @@ def plot():
         axes.set_xlim(0,1000)
         axes.set_ylim(0,30000)
         mic_line, = axes.plot(mic_xdata, mic_ydata, 'b-', label="mic data")
-        avg_mic_line, = axes.plot(avg_mic_xdata, avg_mic_ydata, 'r-', label="average mic data")
+        avg_noise_line, = axes.plot(avg_noise_xdata, avg_noise_ydata, 'r-', label="average noise data")
         music_line, = axes.plot(music_xdata, music_ydata, 'g-', label="music data")
         mod_music_line, = axes.plot(mod_music_xdata, mod_music_ydata, 'y-', label="modified music data")
         axes.legend()
@@ -74,7 +75,9 @@ def play():
     global write_data, music_avg, gain
     music_data = struct.unpack(format_string, wf.readframes(NUM_FRAMES))
     write_data = np.multiply(music_data, math.pow(10, gain/10))
-    #print("write data: ", str(write_data))
+    #limit the entries in write_Data to the bounds of a Short type
+    write_data = np.clip(write_data, a_min=-32768, a_max=32767)
+    # print("write data: ", str(write_data))
     output_stream.write(struct.pack(format_string, *write_data.astype(int)))
     orig_music_avg = np.mean(np.square(music_data))
     music_avg = np.mean(np.square(write_data))
@@ -125,24 +128,24 @@ def listen():
 def adjust_volume():
     global mic_avg, music_avg, gain, last_meas_time, n, avg_noise, N
     #this math is sketchy. Check and come up with a a better calculation
-    noise = math.sqrt(mic_avg) - (math.sqrt(music_avg) * ((cur_vol_lev)/100)) #FIX
+    noise = math.sqrt(mic_avg) - (math.sqrt(music_avg) * cur_vol_gain)#((cur_vol_lev)/100)) #FIX
     avg_noise += noise
     n += 1
     if time.clock() >= last_meas_time + 1:
         avg_noise = avg_noise/n
         print("noise val =",str(avg_noise))
-        print("mic val =",str(mic_avg))
-        print("music val =",str(music_avg))
+        print("mic val =",str(math.sqrt(mic_avg)))
+        print("music val =",str(math.sqrt(music_avg)))
         # print("orig music val =",str(orig_music_avg))
         
         # manage plots and update datapoints
-        if (GRAPH_AVG_MIC):
-            avg_mic_xdata.append(N)
-            avg_mic_ydata.append(avg_noise)
+        if (GRAPH_AVG_NOISE):
+            avg_noise_xdata.append(N)
+            avg_noise_ydata.append(avg_noise)
             #print("xdata= ",avg_mic_xdata)
             #print("ydata= ",avg_mic_ydata)
-            avg_mic_line.set_xdata(avg_mic_xdata)
-            avg_mic_line.set_ydata(avg_mic_ydata)
+            avg_noise_line.set_xdata(avg_noise_xdata)
+            avg_noise_line.set_ydata(avg_noise_ydata)
             plt.draw()
             plt.pause(.00001)
         # update the gain/volume based on noise value
@@ -194,7 +197,6 @@ while len(write_data) > 0:
     listen()
     adjust_volume()
 
-#plt.show()
 # stop streams
 output_stream.stop_stream()
 output_stream.close()
