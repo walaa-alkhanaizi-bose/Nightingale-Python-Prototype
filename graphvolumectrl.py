@@ -32,6 +32,8 @@ mod_music_ydata = []
 #declare some constants for data exchange
 NUM_FRAMES = 1024
 NUM_CHANNELS = 2
+GAIN_STEP = 2
+GAIN_lIMIT = 20
 #flags for graphing
 Flags = [0,0,0,0,0]
 BAR_GRAPH_MIC = Flags[0]
@@ -127,7 +129,7 @@ def listen():
 def adjust_volume():
     global mic_avg, music_avg, gain, last_meas_time, n, avg_noise, N, cur_vol_lev
     #this math is sketchy. Check and come up with a a better calculation
-    noise = math.sqrt(mic_avg) - (math.sqrt(music_avg) * cur_vol_gain(cur_vol_lev))#((cur_vol_lev)/100)) #FIX
+    noise = math.sqrt(mic_avg) - (math.sqrt(music_avg) * (cur_vol_gain(cur_vol_lev+(gain/20)*100)))#+math.pow(10, gain/10)))#((cur_vol_lev)/100)) #FIX
     avg_noise += noise
     n += 1
     if time.clock() >= last_meas_time + 1:
@@ -154,7 +156,7 @@ def adjust_volume():
             print("QUIET!!!! and gain = ", gain)
         else:
             volume_adjustment_SM(NOEVENT)
-        gain = max(-10, min(gain, 10)) #clip the gain to the max and min values
+        gain = max(-GAIN_lIMIT, min(gain, GAIN_lIMIT)) #clip the gain to the max and min values
         n = 0
         avg_noise = 0
         last_meas_time = time.clock()
@@ -178,7 +180,7 @@ def volume_adjustment_SM(event):
         elif (count == 5):
             state = idle
             count = 0
-            gain += 1
+            gain += GAIN_STEP
     elif (state == quiet_ct):
         count += 1
         if (event == NOISE):
@@ -187,7 +189,7 @@ def volume_adjustment_SM(event):
         elif (count == 5):
             state = idle
             count = 0
-            gain -= 1
+            gain -= GAIN_STEP
 
 ####### MAIN CODE ######
 # instantiate PyAudio
