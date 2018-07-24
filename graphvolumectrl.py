@@ -20,6 +20,7 @@ last_meas_time = time.clock()
 n = 0
 N = 0
 avg_noise = 0
+avg_noise_relative_no_gain = 0
 #instantiate arrays to store data to be plotted
 mic_xdata = []
 mic_ydata = []
@@ -32,6 +33,7 @@ mod_music_ydata = []
 #declare some constants for data exchange
 NUM_FRAMES = 1024
 NUM_CHANNELS = 2
+NOISE_PERSISTENCE = 5
 GAIN_STEP = 2
 GAIN_lIMIT = 20
 #flags for graphing
@@ -83,11 +85,14 @@ def plot():
         plt.pause(.5)
 
 def play():
-    global write_data, music_avg, gain
+    global write_data, music_avg, gain, orig_music_avg
+    #get raw music data
     music_data = struct.unpack(format_string, wf.readframes(NUM_FRAMES))
+    #apply the relevant gain to all the data entries
     write_data = np.multiply(music_data, math.pow(10, gain/10))
-    #limit the entries in write_Data to the bounds of a Short type
+    #limit each entry in write_Data to the bounds of a Short type
     write_data = np.clip(write_data, a_min=-32768, a_max=32767)
+    #send the music to the speaker audio stream
     output_stream.write(struct.pack(format_string, *write_data.astype(int)))
     orig_music_avg = np.mean(np.square(music_data))
     music_avg = np.mean(np.square(write_data))
@@ -107,7 +112,7 @@ def play():
         plt.draw()
         plt.pause(.00001)
 
-def listen():
+def record():
     global mic_avg, N
     mic_avg = 0
     short_mic_data = struct.unpack(format_string, input_stream.read(NUM_FRAMES))
@@ -127,13 +132,18 @@ def listen():
         plt.pause(.00001)
 
 def adjust_volume():
-    global mic_avg, music_avg, gain, last_meas_time, n, avg_noise, N, cur_vol_lev
+    global mic_avg, music_avg, gain, last_meas_time, n, avg_noise, N, cur_vol_lev, orig_music_avg, noise_relative_no_gain, avg_noise_relative_no_gain
     #this math is sketchy. Check and come up with a a better calculation
     noise = math.sqrt(mic_avg) - (math.sqrt(music_avg) * (cur_vol_gain(cur_vol_lev+(gain/20)*100)))#+math.pow(10, gain/10)))#((cur_vol_lev)/100)) #FIX
     avg_noise += noise
+    
+    noise_relative_no_gain = math.sqrt(mic_avg) - math.sqrt(orig_music_avg)
+    avg_noise_relative_no_gain += noise_relative_no_gain
+    
     n += 1
     if time.clock() >= last_meas_time + 1:
         avg_noise = avg_noise/n
+        avg_noise_relative_no_gain = avg_noise_relative_no_gain/n
         print("noise val =",str(avg_noise))
         # print("mic val =",str(math.sqrt(mic_avg)))
         # print("music val =",str(math.sqrt(music_avg)))
@@ -147,11 +157,14 @@ def adjust_volume():
             plt.pause(.00001)
         # update the gain/volume based on noise value
         if avg_noise > 20:
-            # gain += 1
             volume_adjustment_SM(NOISE)
             print("NOISE!!!! and gain = ", gain)
-        elif avg_noise < -20:
-            # gain -= 1
+        #priority to if the noise has quieted down enough to return to original volume
+        elif avg_noise_relative_no_gain < 10:
+            set_volume_to_original_level()
+            volume_adjustment_SM(NOEVENT)
+        #If not, check if it has gotten any quieter and reduce the gain/volume accordingly
+        elif avg_noise < -20 and gain != 0:
             volume_adjustment_SM(QUIET)
             print("QUIET!!!! and gain = ", gain)
         else:
@@ -177,7 +190,7 @@ def volume_adjustment_SM(event):
         if (event == QUIET):
             count = 0
             state = quiet_ct
-        elif (count == 5):
+        elif (count == NOISE_PERSISTENCE):
             state = idle
             count = 0
             gain += GAIN_STEP
@@ -186,10 +199,15 @@ def volume_adjustment_SM(event):
         if (event == NOISE):
             count = 0
             state = noise_ct
-        elif (count == 5):
+        elif (count == NOISE_PERSISTENCE):
             state = idle
             count = 0
             gain -= GAIN_STEP
+
+def set_volume_to_original_level():
+    global gain
+    gain =  0
+    count = 0
 
 ####### MAIN CODE ######
 # instantiate PyAudio
@@ -222,7 +240,7 @@ output_stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
 plot()
 while len(write_data) > 0:
     play()
-    listen()
+    record()
     adjust_volume()
 
 # stop streams
