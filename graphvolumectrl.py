@@ -160,16 +160,13 @@ def adjust_volume():
             volume_adjustment_SM(NOISE)
             print("NOISE!!!! and gain = ", gain)
         #priority to if the noise has quieted down enough to return to original volume
-        elif avg_noise_relative_no_gain < 10:
-            #set_volume_to_original_level()
-            volume_adjustment_SM(QUIET)
-        #If not, check if it has gotten any quieter and reduce the gain/volume accordingly
-        elif avg_noise < -20 and gain != 0:
-            volume_adjustment_SM(QUIET)
+        elif avg_noise_relative_no_gain < 20:
             print("QUIET!!!! and gain = ", gain)
+            # set_volume_to_original_level()
+            volume_adjustment_SM(QUIET)
         else:
             volume_adjustment_SM(NOEVENT)
-        # gain = max(0, min(gain, GAIN_lIMIT)) #clip the gain to the max and min values
+        gain = max(0, min(gain, GAIN_lIMIT)) #clip the gain to the max and min values
         n = 0
         avg_noise = 0
         last_meas_time = time.clock()
@@ -186,6 +183,7 @@ def volume_adjustment_SM(event):
         count = 1
         state = noise_ct if (event == NOISE) else quiet_ct
     elif (state == noise_ct):
+        count += 1
         if (event == QUIET):
             count = 0
             state = quiet_ct
@@ -193,9 +191,8 @@ def volume_adjustment_SM(event):
             state = idle
             count = 0
             gain += GAIN_STEP
-        else:
-            count += 1
     elif (state == quiet_ct):
+        count += 1
         if (event == NOISE):
             count = 0
             state = noise_ct
@@ -203,8 +200,6 @@ def volume_adjustment_SM(event):
             state = idle
             count = 0
             gain -= GAIN_STEP
-        else:
-            count += 1
 
 def set_volume_to_original_level():
     global gain
